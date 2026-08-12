@@ -3,25 +3,29 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Register</title>
+<title>Edit Profile</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <div class="card">
-    <div class="card-icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
-            <circle cx="9" cy="7" r="4"></circle>
-            <line x1="19" y1="8" x2="19" y2="14"></line>
-            <line x1="22" y1="11" x2="16" y2="11"></line>
-        </svg>
+    <div class="profile-header">
+        <div>
+            <div class="card-icon" style="margin: 0 0 12px 0;">
+                <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="8" r="4"></circle>
+                    <path d="M4 21c0-4 4-6 8-6s8 2 8 6"></path>
+                </svg>
+            </div>
+            <h1 id="welcomeMsg">Your profile</h1>
+            <p class="subtitle">View and update your details.</p>
+        </div>
+        <button id="logoutBtn" type="button" class="logout-btn">Log out</button>
     </div>
-    <h1>Create an account</h1>
-    <p class="subtitle">Fill in your details to register.</p>
 
     <div id="alert" class="alert alert-error hidden"></div>
+    <div id="successAlert" class="alert alert-success hidden">Your details have been updated.</div>
 
-    <form id="registrationForm" novalidate>
+    <form id="editForm" novalidate class="hidden">
         <div class="row">
             <div>
                 <label for="title">Title</label>
@@ -72,31 +76,30 @@
             </div>
         </div>
 
-        <label for="password">Password</label>
+        <label for="password">New password <span style="font-weight:400;color:#6b7280;">(leave blank to keep current)</span></label>
         <input type="password" id="password" name="password">
         <div class="field-error" data-error-for="password"></div>
 
-        <label for="password_confirm">Confirm password</label>
+        <label for="password_confirm">Confirm new password</label>
         <input type="password" id="password_confirm" name="password_confirm">
         <div class="field-error" data-error-for="password_confirm"></div>
 
         <button type="submit" id="submitBtn">
-            <span id="submitBtnText">Register</span>
+            <span id="submitBtnText">Save changes</span>
             <span id="submitBtnSpinner" class="spinner hidden"></span>
         </button>
     </form>
-    <p class="subtitle" style="text-align:center; margin-top:20px;">
-        Already have an account? <a href="login.php">Log in here</a>
-    </p>
 </div>
 
 <script>
-var form = document.getElementById('registrationForm');
+var form = document.getElementById('editForm');
 var alertBox = document.getElementById('alert');
+var successAlert = document.getElementById('successAlert');
 var submitBtn = document.getElementById('submitBtn');
 
 function clearErrors() {
     alertBox.classList.add('hidden');
+    successAlert.classList.add('hidden');
     document.querySelectorAll('.field-error').forEach(function (el) { el.textContent = ''; });
     document.querySelectorAll('.invalid').forEach(function (el) { el.classList.remove('invalid'); });
 }
@@ -106,6 +109,42 @@ function showFieldError(field, message) {
     var errorEl = document.querySelector('[data-error-for="' + field + '"]');
     if (input) input.classList.add('invalid');
     if (errorEl) errorEl.textContent = message;
+}
+
+function loadUser() {
+    fetch('../api/user.php', { method: 'GET' })
+        .then(function (res) {
+            if (res.status === 401) {
+                window.location.href = 'login.php';
+                return null;
+            }
+            return res.json();
+        })
+        .then(function (result) {
+            if (!result) return;
+
+            if (!result.success) {
+                alertBox.classList.remove('hidden');
+                alertBox.textContent = result.message || 'Could not load your details';
+                return;
+            }
+
+            var user = result.user;
+            document.getElementById('welcomeMsg').textContent = 'Welcome, ' + user.forenames + '!';
+            form.title.value = user.title;
+            form.date_of_birth.value = user.date_of_birth;
+            form.forenames.value = user.forenames;
+            form.surname.value = user.surname;
+            form.email.value = user.email;
+            form.mobile_phone.value = user.mobile_phone;
+            form.other_phone.value = user.other_phone || '';
+
+            form.classList.remove('hidden');
+        })
+        .catch(function () {
+            alertBox.classList.remove('hidden');
+            alertBox.textContent = 'Could not reach the server';
+        });
 }
 
 function validate(data) {
@@ -138,11 +177,13 @@ function validate(data) {
         errors.email = 'Enter a valid email address';
     }
 
-    if (data.password.length < 8) {
-        errors.password = 'Password must be at least 8 characters';
-    }
-    if (data.password !== data.password_confirm) {
-        errors.password_confirm = 'Passwords do not match';
+    if (data.password || data.password_confirm) {
+        if (data.password.length < 8) {
+            errors.password = 'Password must be at least 8 characters';
+        }
+        if (data.password !== data.password_confirm) {
+            errors.password_confirm = 'Passwords do not match';
+        }
     }
 
     return errors;
@@ -163,31 +204,27 @@ form.addEventListener('submit', function (e) {
     }
 
     submitBtn.disabled = true;
-    document.getElementById('submitBtnText').textContent = 'Registering...';
+    document.getElementById('submitBtnText').textContent = 'Saving...';
     document.getElementById('submitBtnSpinner').classList.remove('hidden');
 
-    fetch('../api/register.php', {
-        method: 'POST',
+    fetch('../api/user.php', {
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data)
     })
-    .then(function (res) { return res.json().then(function (body) { return { status: res.status, body: body }; }); })
+    .then(function (res) { return res.json(); })
     .then(function (result) {
-        if (result.body.success) {
-            alertBox.classList.remove('hidden');
-            alertBox.classList.remove('alert-error');
-            alertBox.classList.add('alert-success');
-            alertBox.textContent = 'Registration successful! Redirecting to login...';
-            setTimeout(function () {
-                window.location.href = 'login.php';
-            }, 1200);
-        } else if (result.body.errors) {
-            Object.keys(result.body.errors).forEach(function (field) {
-                showFieldError(field, result.body.errors[field]);
+        if (result.success) {
+            successAlert.classList.remove('hidden');
+            form.password.value = '';
+            form.password_confirm.value = '';
+        } else if (result.errors) {
+            Object.keys(result.errors).forEach(function (field) {
+                showFieldError(field, result.errors[field]);
             });
         } else {
             alertBox.classList.remove('hidden');
-            alertBox.textContent = result.body.message || 'Something went wrong';
+            alertBox.textContent = result.message || 'Something went wrong';
         }
     })
     .catch(function () {
@@ -196,9 +233,18 @@ form.addEventListener('submit', function (e) {
     })
     .finally(function () {
         submitBtn.disabled = false;
-        document.getElementById('submitBtnText').textContent = 'Register';
+        document.getElementById('submitBtnText').textContent = 'Save changes';
         document.getElementById('submitBtnSpinner').classList.add('hidden');
     });
+});
+
+loadUser();
+
+document.getElementById('logoutBtn').addEventListener('click', function () {
+    fetch('../api/logout.php', { method: 'POST' })
+        .then(function () {
+            window.location.href = 'login.php';
+        });
 });
 </script>
 </body>
