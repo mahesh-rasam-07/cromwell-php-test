@@ -44,10 +44,9 @@
         $mobile    = trim($input['mobile_phone'] ?? '');
         $other     = trim($input['other_phone'] ?? '');
         $email     = strtolower(trim($input['email'] ?? ''));
-        $password  = $input['password'] ?? '';       // optional on edit
+        $password  = $input['password'] ?? '';       
         $password2 = $input['password_confirm'] ?? '';
 
-        // --- Server-side validation (same rules as registration, minus required password) ---
         $errors = [];
 
         if ($forenames === '') $errors['forenames'] = 'Forenames are required';
@@ -81,7 +80,6 @@
             $errors['email'] = 'Enter a valid email address';
         }
 
-        // Password is optional here - only validate it if they're trying to change it
         if ($password !== '') {
             if (strlen($password) < 8) {
                 $errors['password'] = 'Password must be at least 8 characters';
@@ -97,7 +95,6 @@
             exit;
         }
 
-        // --- Make sure this email isn't already used by a DIFFERENT user ---
         $check = pg_query_params(
             $db,
             'SELECT id FROM users WHERE LOWER(email) = $1 AND id != $2',
@@ -109,7 +106,6 @@
             exit;
         }
 
-        // --- Update, with or without a new password ---
         if ($password !== '') {
             $password_hash = password_hash($password, PASSWORD_DEFAULT);
             $update = pg_query_params(
